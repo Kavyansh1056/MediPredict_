@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediPredict — AI Symptom Checker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<!-- ── Navbar ──────────────────────────────────────────────── -->
+<nav class="navbar">
+  <div class="nav-inner">
+    <a class="nav-brand" href="/">
+      <div class="brand-cross" aria-hidden="true">✚</div>
+      <div class="brand-text">
+        <span class="brand-name">MediPredict</span>
+        <span class="brand-sub">AI Symptom Analysis</span>
+      </div>
+    </a>
+    <div class="nav-center">
+      {% if model_meta %}
+      <div class="nav-stat">
+        <span class="ns-val">{{ model_meta.disease_count }}</span>
+        <span class="ns-lbl">diseases</span>
+      </div>
+      <div class="nav-dot"></div>
+      <div class="nav-stat">
+        <span class="ns-val">{{ (model_meta.cv_mean * 100) | round(1) }}%</span>
+        <span class="ns-lbl">CV accuracy</span>
+      </div>
+      <div class="nav-dot"></div>
+      <div class="nav-stat">
+        <span class="ns-val">Ensemble</span>
+        <span class="ns-lbl">RF + SVM</span>
+      </div>
+      {% endif %}
+    </div>
+    <div class="nav-right">
+      <span class="edu-pill">Educational Use Only</span>
+      <button class="theme-btn" id="themeBtn" aria-label="Toggle dark mode">
+        <svg class="sun-ic" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.6 4.6l1.4 1.4M14 14l1.4 1.4M4.6 15.4l1.4-1.4M14 6l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg class="moon-ic" viewBox="0 0 20 20" fill="none"><path d="M16.5 11.5A6.5 6.5 0 018.5 3.5a6.5 6.5 0 108 8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ────────────────────────────────────────────────── -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-text">
+      <div class="hero-tag">Powered by Machine Learning</div>
+      <h1 class="hero-h1">Describe how<br><em>you're feeling</em></h1>
+      <p class="hero-p">Select every symptom you're currently experiencing. Our ensemble AI model analyses the pattern and suggests a likely condition with a confidence score and actionable guidance.</p>
+      <div class="hero-chips">
+        <span class="hchip hchip-blue">41 Conditions</span>
+        <span class="hchip hchip-teal">62 Symptoms</span>
+        <span class="hchip hchip-green">RF + SVM Ensemble</span>
+        <span class="hchip hchip-orange">No Medicines Listed</span>
+      </div>
+    </div>
+    <div class="hero-visual" aria-hidden="true">
+      <div class="hv-ring r1"></div>
+      <div class="hv-ring r2"></div>
+      <div class="hv-ring r3"></div>
+      <div class="hv-core">
+        <svg viewBox="0 0 64 64" fill="none" class="hv-svg">
+          <path d="M32 10v44M10 32h44" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+          <circle cx="32" cy="32" r="18" stroke="currentColor" stroke-width="2" opacity=".3"/>
+          <circle cx="32" cy="32" r="10" stroke="currentColor" stroke-width="1.5" opacity=".15"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ── Sticky Counter ───────────────────────────────────────── -->
+<div class="counter-bar" id="counterBar">
+  <div class="counter-bar-inner">
+    <div class="cb-left">
+      <div class="cb-num" id="cbNum">0</div>
+      <div class="cb-label">symptoms selected</div>
+    </div>
+    <div class="cb-center" id="cbStatus">
+      <span class="cb-dot" id="cbDot"></span>
+      <span id="cbMsg">Select at least 2 symptoms to begin</span>
+    </div>
+    <div class="cb-right">
+      <button class="btn-clear" id="btnClear" onclick="clearAll()" disabled>Clear All</button>
+    </div>
+  </div>
+  <div class="cb-progress"><div class="cb-progress-fill" id="cbFill"></div></div>
+</div>
+
+<!-- ── Form ─────────────────────────────────────────────────── -->
+<main class="page-main">
+  <form action="/predict" method="POST" id="mainForm" novalidate>
+
+    {% for category, symptoms in symptom_categories.items() %}
+    <section class="sym-section">
+      <div class="sym-section-head">
+        <h2 class="sym-cat-title">{{ category }}</h2>
+        <span class="sym-cat-count" data-idx="{{ loop.index0 }}">0</span>
+      </div>
+      <div class="sym-grid">
+        {% for symptom in symptoms %}
+        <label class="sym-chip" data-idx="{{ loop.index0 }}">
+          <input type="checkbox" name="symptoms" value="{{ symptom }}" onchange="onChipChange(this)">
+          <span class="sym-chip-inner">
+            <span class="sym-chip-text">{{ symptom_labels[symptom] }}</span>
+            <span class="sym-chip-tick" aria-hidden="true">
+              <svg viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+
+    <!-- Submit zone -->
+    <div class="submit-zone">
+      <div class="submit-card">
+        <div class="sc-left">
+          <div class="sc-icon" aria-hidden="true">🔬</div>
+          <div class="sc-text">
+            <div class="sc-title">Ready for analysis</div>
+            <div class="sc-sub" id="scSub">Select symptoms above to get started</div>
+          </div>
+        </div>
+        <button type="submit" class="btn-analyse" id="btnAnalyse" disabled>
+          <svg viewBox="0 0 20 20" fill="none" class="ba-icon"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.8"/><path d="M13.5 13.5l3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Analyse Symptoms
+          <div class="ba-shine"></div>
+        </button>
+      </div>
+      <p class="disclaimer">⚠️ <strong>Educational use only.</strong> This tool does not provide medical diagnoses. Always consult a qualified healthcare professional for any health concerns.</p>
+    </div>
+
+  </form>
+</main>
+
+<!-- ── Loading overlay ─────────────────────────────────────── -->
+<div class="loading-overlay" id="loadingOverlay" hidden>
+  <div class="loading-card">
+    <div class="spinner-wrap">
+      <div class="spinner-ring"></div>
+      <div class="spinner-center">
+        <svg viewBox="0 0 28 28" fill="none"><path d="M14 6v8l5 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="14" cy="14" r="11" stroke="currentColor" stroke-width="1.5" opacity=".25"/></svg>
+      </div>
+    </div>
+    <div class="loading-title">Analysing symptoms</div>
+    <div class="loading-msg" id="loadingMsg">Running ensemble model…</div>
+    <div class="loading-dots"><span></span><span></span><span></span></div>
+  </div>
+</div>
+
+<!-- ── Footer ──────────────────────────────────────────────── -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span class="footer-logo">✚ MediPredict v7</span>
+    <span class="footer-sep">·</span>
+    <span>UPES Minor Project 2026</span>
+    <span class="footer-sep">·</span>
+    <span>Python · Flask · Scikit-learn</span>
+    <span class="footer-sep">·</span>
+    <span>RF+SVM Ensemble</span>
+    <span class="footer-sep">·</span>
+    <span class="footer-note">Not for clinical use</span>
+  </div>
+</footer>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
