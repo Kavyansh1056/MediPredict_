@@ -1,4 +1,4 @@
-# MediPredict v7 — AI Symptom Checker
+# MediPredict  — AI Symptom Checker
 
 ## Quick Start (VS Code / Windows)
 
